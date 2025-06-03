@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import requests
 from telegram_alerts import send_telegram_alert
+from datetime import datetime
 
 st.set_page_config(page_title="BTC & ETH Signal Dashboard", layout="centered")
 
@@ -54,8 +55,11 @@ for asset in assets:
     st.subheader(f"📍 Signal: {signal}")
     signal_messages.append(f"{asset.upper()}: {signal} (Price: ${latest_price:,.2f}, RSI: {latest_rsi:.2f})")
 
-# Send Telegram Alert
+# Add timestamp to force Telegram delivery
+timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 alert_message = "\n".join(signal_messages)
+alert_message += f"\n\n🕒 Refreshed at {timestamp}"
+
 send_telegram_alert(alert_message)
 
 # Preview alert content

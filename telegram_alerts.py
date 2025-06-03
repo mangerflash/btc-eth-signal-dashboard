@@ -1,16 +1,21 @@
-
+import os
 import requests
 
-BOT_TOKEN = "7976031453:AAFWtIKSt93AQFOvfUtDa0WxeqHS-Vnleyw"
-CHAT_ID = "5819357765"
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 def send_telegram_alert(message):
+    if not BOT_TOKEN or not CHAT_ID:
+        print("Bot token or chat ID not found in environment.")
+        return
+
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": CHAT_ID,
         "text": message,
         "parse_mode": "HTML"
     }
+
     try:
         requests.post(url, data=payload)
     except Exception as e:

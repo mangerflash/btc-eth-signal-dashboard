@@ -1,9 +1,10 @@
+
 import streamlit as st
 import time
 
-# Auto-refresh every 30 minutes
+# Auto-refresh every 30 minutes (1800 seconds)
 st.experimental_rerun_timer = st.empty()
-time.sleep(1800)  # 1800 seconds = 30 minutes
+time.sleep(1800)
 st.experimental_rerun()
 
 import streamlit as st

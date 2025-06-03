@@ -12,11 +12,12 @@ st.title("📈 BTC & ETH Signal Dashboard")
 def fetch_price_data(asset_id):
     url = f"https://api.coingecko.com/api/v3/coins/{asset_id}/market_chart?vs_currency=usd&days=90"
     response = requests.get(url).json()
-if "prices" not in response:
-    st.error(f"❌ Failed to load data for {asset_id.title()}")
-    return pd.DataFrame()  # return empty DataFrame
 
-prices = response["prices"]
+    if "prices" not in response:
+        st.error(f"❌ Failed to load data for {asset_id.title()}")
+        return pd.DataFrame()
+
+    prices = response["prices"]
     df = pd.DataFrame(prices, columns=["timestamp", "price"])
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
     df.set_index("timestamp", inplace=True)
@@ -40,6 +41,8 @@ signal_messages = []
 for asset in assets:
     st.header(asset.upper())
     df = fetch_price_data(asset)
+    if df.empty:
+        continue
     df = calculate_indicators(df)
 
     latest_rsi = df["RSI"].iloc[-1]

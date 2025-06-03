@@ -44,5 +44,9 @@ for asset in assets:
     signal_messages.append(f"{asset.upper()}: {signal} (Price: ${latest_price:,.2f}, RSI: {latest_rsi:.2f})")
 
 # Send Telegram Alert
-alert_message = "\n".join(signal_messages)
-send_telegram_alert(alert_message)
+# Remove or comment out this line temporarily
+# send_telegram_alert(alert_message)
+
+# Show signal output on screen only
+st.subheader("🚨 Telegram message preview:")
+st.text(alert_message)

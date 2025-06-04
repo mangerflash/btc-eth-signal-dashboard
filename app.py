@@ -8,6 +8,7 @@ from datetime import datetime
 import pytz
 from telegram_alerts import send_telegram_alert
 from streamlit_autorefresh import st_autorefresh
+import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="BTC, ETH & SOL Signal Dashboard", layout="centered")
 st.title("📈 Multi-Asset Crypto Signal Dashboard")
@@ -80,6 +81,9 @@ assets = {
     "solana": "SOL"
 }
 
+# Silent mode checkbox
+silent_mode = st.checkbox("🔕 Silent Mode (No Telegram Alerts)", value=False)
+
 prev_signals = load_previous_signals()
 current_signals = {}
 signal_messages = []
@@ -124,7 +128,7 @@ for asset_id, symbol in assets.items():
         signal_messages.append(f"{symbol}: {signal} (Price: ${price:,.2f}, RSI: {rsi:.2f})")
 
 # Send alert if needed
-if signal_messages or test_alert:
+if (signal_messages or test_alert) and not silent_mode:
     if test_alert:
         message = "📩 Test Alert Triggered Manually\n" + "\n".join(
             [f"{k}: {v}" for k, v in current_signals.items()]
@@ -143,5 +147,29 @@ if signal_messages:
     st.text(message)
 elif test_alert:
     st.success("✅ Test alert sent to Telegram.")
+elif silent_mode:
+    st.info("🔇 Silent Mode is ON. No Telegram alerts will be sent.")
 else:
     st.info("No new signal change. No Telegram alert sent.")
+
+# Historical Signal Charting
+st.header("📊 Historical Signal Charts")
+
+log_file = "signal_log.csv"
+if os.path.exists(log_file):
+    log_df = pd.read_csv(log_file, parse_dates=["timestamp"])
+    for asset in ["BTC", "ETH", "SOL"]:
+        asset_df = log_df[log_df["asset"] == asset]
+        if not asset_df.empty:
+            st.subheader(f"{asset} Price & RSI Over Time")
+            fig, ax1 = plt.subplots()
+            ax1.plot(asset_df["timestamp"], asset_df["price"], label="Price", color="tab:blue")
+            ax1.set_xlabel("Time")
+            ax1.set_ylabel("Price", color="tab:blue")
+            ax2 = ax1.twinx()
+            ax2.plot(asset_df["timestamp"], asset_df["RSI"], label="RSI", color="tab:red")
+            ax2.set_ylabel("RSI", color="tab:red")
+            fig.autofmt_xdate()
+            st.pyplot(fig)
+else:
+    st.info("No historical data available yet. Signals will be logged after first run.")

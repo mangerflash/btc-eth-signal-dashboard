@@ -2,21 +2,20 @@
 import streamlit as st
 import pandas as pd
 import requests
-from telegram_alerts import send_telegram_alert
+import json
+import os
 from datetime import datetime
+from telegram_alerts import send_telegram_alert
 
-st.set_page_config(page_title="BTC & ETH Signal Dashboard", layout="centered")
-
-st.title("📈 BTC & ETH Signal Dashboard")
+st.set_page_config(page_title="BTC, ETH & SOL Signal Dashboard", layout="centered")
+st.title("📈 Multi-Asset Crypto Signal Dashboard")
 
 def fetch_price_data(asset_id):
     url = f"https://api.coingecko.com/api/v3/coins/{asset_id}/market_chart?vs_currency=usd&days=90"
     response = requests.get(url).json()
-
     if "prices" not in response:
         st.error(f"❌ Failed to load data for {asset_id.title()}")
         return pd.DataFrame()
-
     prices = response["prices"]
     df = pd.DataFrame(prices, columns=["timestamp", "price"])
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
@@ -35,40 +34,86 @@ def calculate_indicators(df):
     df["RSI"] = 100 - (100 / (1 + rs))
     return df
 
-assets = ["bitcoin", "ethereum"]
-signal_messages = []
+def load_previous_signals(path="last_signal.json"):
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            return json.load(f)
+    return {}
 
-for asset in assets:
-    st.header(asset.upper())
-    df = fetch_price_data(asset)
+def save_current_signals(signals, path="last_signal.json"):
+    with open(path, "w") as f:
+        json.dump(signals, f)
+
+def log_signal(asset, signal, price, rsi, reason, log_file="signal_log.csv"):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    entry = pd.DataFrame([{
+        "timestamp": timestamp,
+        "asset": asset,
+        "signal": signal,
+        "price": price,
+        "RSI": rsi,
+        "reason": reason
+    }])
+    if os.path.exists(log_file):
+        entry.to_csv(log_file, mode='a', header=False, index=False)
+    else:
+        entry.to_csv(log_file, index=False)
+
+assets = {
+    "bitcoin": "BTC",
+    "ethereum": "ETH",
+    "solana": "SOL"
+}
+
+prev_signals = load_previous_signals()
+current_signals = {}
+signal_messages = []
+timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+hour_minute = datetime.now().strftime("%H:%M")
+
+for asset_id, symbol in assets.items():
+    st.header(symbol)
+    df = fetch_price_data(asset_id)
     if df.empty:
         continue
     df = calculate_indicators(df)
 
-    latest_rsi = df["RSI"].iloc[-1]
-    latest_price = df["price"].iloc[-1]
+    price = df["price"].iloc[-1]
+    rsi = df["RSI"].iloc[-1]
     ma = df["MA30"].iloc[-1]
 
-    st.metric(label="Current Price", value=f"${latest_price:,.2f}")
-    st.metric(label="RSI", value=f"{latest_rsi:.2f}")
-    st.metric(label="30D MA", value=f"${ma:,.2f}")
+    st.metric("Current Price", f"${price:,.2f}")
+    st.metric("RSI", f"{rsi:.2f}")
+    st.metric("30D MA", f"${ma:,.2f}")
 
     signal = "HOLD"
-    if latest_rsi < 35 and latest_price < ma:
+    reason = "Neutral range"
+    if rsi < 35 and price < ma:
         signal = "BUY"
-    elif latest_rsi > 70 and latest_price > ma:
+        reason = "RSI < 35 and price below MA30"
+    elif rsi > 70 and price > ma:
         signal = "SELL"
+        reason = "RSI > 70 and price above MA30"
 
     st.subheader(f"📍 Signal: {signal}")
-    signal_messages.append(f"{asset.upper()}: {signal} (Price: ${latest_price:,.2f}, RSI: {latest_rsi:.2f})")
+    current_signals[symbol] = signal
+    log_signal(symbol, signal, price, rsi, reason)
 
-# Add timestamp to force Telegram delivery
-timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-alert_message = "\n".join(signal_messages)
-alert_message += f"\n\n🕒 Refreshed at {timestamp}"
+    if hour_minute == "09:00" or prev_signals.get(symbol) != signal:
+        signal_messages.append(f"{symbol}: {signal} (Price: ${price:,.2f}, RSI: {rsi:.2f})")
 
-send_telegram_alert(alert_message)
+# Send alert if needed
+if signal_messages:
+    message = "\n".join(signal_messages)
+    message += f"\n\n🕒 Refreshed at {timestamp}"
+    send_telegram_alert(message)
 
-# Preview alert content
-st.subheader("📩 Telegram Message Preview")
-st.text(alert_message)
+# Save state
+save_current_signals(current_signals)
+
+# Preview alert
+if signal_messages:
+    st.subheader("📩 Telegram Message Preview")
+    st.text(message)
+else:
+    st.info("No new signal change. No Telegram alert sent.")

@@ -12,17 +12,26 @@ st.title("📈 Multi-Asset Crypto Signal Dashboard")
 
 def fetch_price_data(asset_id):
     url = f"https://api.coingecko.com/api/v3/coins/{asset_id}/market_chart?vs_currency=usd&days=90"
-    response = requests.get(url).json()
-    if "prices" not in response:
-        st.error(f"❌ Failed to load data for {asset_id.title()}")
+    try:
+        r = requests.get(url, timeout=10)
+        if r.status_code != 200:
+            st.error(f"❌ API error {r.status_code} for {asset_id}")
+            return pd.DataFrame()
+        response = r.json()
+        if "prices" not in response:
+            st.error(f"❌ 'prices' key missing in API response for {asset_id}")
+            return pd.DataFrame()
+    except Exception as e:
+        st.error(f"❌ Failed to fetch data for {asset_id}: {e}")
         return pd.DataFrame()
+
     prices = response["prices"]
     df = pd.DataFrame(prices, columns=["timestamp", "price"])
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
     df.set_index("timestamp", inplace=True)
     df["price"] = df["price"].astype(float)
     return df
-
+    
 def calculate_indicators(df):
     df["MA30"] = df["price"].rolling(window=30).mean()
     delta = df["price"].diff()

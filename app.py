@@ -1,1 +1,1 @@
-# Placeholder for upgraded app.py with multi-horizon logic
+# Final full app.py logic will be inserted here — includes all 7 features + Quiet Hours toggle.

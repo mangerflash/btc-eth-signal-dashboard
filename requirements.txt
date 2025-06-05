@@ -1,8 +1,8 @@
-streamlit
-pandas
-requests
-pytz
-matplotlib
-numpy
-scipy
-streamlit-autorefresh
+streamlit==1.24.0
+pandas==1.5.3
+numpy==1.24.3
+plotly==5.15.0
+yfinance==0.2.18
+pytz==2023.3
+requests==2.31.0
+pandas_ta==0.3.14b0

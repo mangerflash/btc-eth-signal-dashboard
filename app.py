@@ -1,62 +1,91 @@
+
 import streamlit as st
 import pandas as pd
 import numpy as np
-import datetime
-from telegram_alerts import send_message
+import yfinance as yf
+import datetime as dt
+import plotly.graph_objs as go
 
-st.set_page_config(page_title="Crypto Signal Dashboard", layout="wide")
+st.set_page_config(layout="wide", page_title="Multi-Horizon Crypto Signal Dashboard")
 
-# UI Toggles
-st.sidebar.title("Settings")
-silent_mode = st.sidebar.toggle("🔕 Silent Mode", value=True)
-quiet_hours = st.sidebar.toggle("🌙 Enable Quiet Hours (18:00–08:00)", value=True)
-if st.sidebar.button("📤 Send Test Telegram Message"):
-    sent = send_message("✅ Test message from Mange's Crypto Dashboard")
-    st.sidebar.success("Message sent!" if sent else "Failed to send.")
+# --- Parameters ---
+assets = {
+    "BTC-USD": "Bitcoin",
+    "ETH-USD": "Ethereum",
+    "SOL-USD": "Solana"
+}
 
-# Simulated signal data for BTC, ETH, SOL (replace with real logic)
-assets = ["BTC", "ETH", "SOL"]
-now = datetime.datetime.now()
-hour = now.hour
+quiet_hours = st.sidebar.toggle("🔕 Quiet Hours Mode (18:00–08:00)", value=True)
+now_hour = dt.datetime.now().hour
+is_quiet = quiet_hours and (now_hour < 8 or now_hour >= 18)
 
-for asset in assets:
-    st.markdown(f"## {asset} Overview")
-    col1, col2, col3 = st.columns(3)
+timeframes = {
+    "Short-Term": 7,
+    "Strategic": 30,
+    "Long-Term": 90
+}
 
+# --- Helper Functions ---
+def fetch_data(ticker, period="180d"):
+    df = yf.download(ticker, period=period, interval="1d")
+    df.dropna(inplace=True)
+    df["MA30"] = df["Close"].rolling(window=30).mean()
+    df["MA90"] = df["Close"].rolling(window=90).mean()
+    df["RSI"] = 100 - (100 / (1 + df["Close"].pct_change().add(1).rolling(14).apply(
+        lambda x: np.mean(x[x > 0]) / np.mean(-x[x < 0]) if np.mean(-x[x < 0]) != 0 else 0, raw=False)))
+    df["Signal"] = np.where(df["Close"] > df["MA30"], "BUY", "SELL")
+    return df
+
+def evaluate_macro_factors():
+    war = "🟧 Geopolitical tension (neutral)"
+    inflation = "🟩 Inflation cooling (positive)"
+    liquidity = "🟥 Liquidity tightening (negative)"
+    return [war, inflation, liquidity]
+
+def signal_breakdown(df):
+    last = df.iloc[-1]
+    rsi = last["RSI"]
+    ma30 = last["MA30"]
+    close = last["Close"]
+    risk = "🔥 High Risk" if rsi > 70 else "⚠️ Moderate" if rsi > 50 else "🟢 Low Risk"
+    reward = "📈 High Potential" if close > ma30 else "📉 Weak Momentum"
+    return risk, reward
+
+# --- App Layout ---
+st.title("📊 Multi-Horizon Crypto Signal Dashboard")
+
+for ticker, name in assets.items():
+    st.header(name)
+    df = fetch_data(ticker)
+    if df.empty:
+        st.error("Failed to fetch data.")
+        continue
+
+    col1, col2 = st.columns([1, 3])
     with col1:
-        st.metric("Short-Term", "BUY" if asset == "BTC" else "HOLD")
+        for label, days in timeframes.items():
+            change = df["Close"].iloc[-1] - df["Close"].iloc[-days]
+            direction = "🔺 Buy" if change > 0 else "🔻 Sell"
+            st.metric(label, value=f"${df['Close'].iloc[-1]:,.2f}", delta=direction)
+
+        risk, reward = signal_breakdown(df)
+        st.markdown(f"**Risk Level:** {risk}")
+        st.markdown(f"**Reward Outlook:** {reward}")
+
     with col2:
-        st.metric("Strategic", "HOLD" if asset != "SOL" else "SELL")
-    with col3:
-        st.metric("Long-Term", "BUY")
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=df.index, y=df["Close"], name="Price", line=dict(color="blue")))
+        fig.add_trace(go.Scatter(x=df.index, y=df["MA30"], name="MA30", line=dict(color="orange")))
+        fig.add_trace(go.Scatter(x=df.index, y=df["MA90"], name="MA90", line=dict(color="green")))
+        fig.update_layout(height=400, margin=dict(l=0, r=0, t=30, b=0))
+        st.plotly_chart(fig, use_container_width=True)
 
-    st.markdown("**Signal Breakdown**")
-    st.write({
-        "RSI (1D)": 42,
-        "MA100": "Above",
-        "MA200": "Above",
-        "MACD": "Bullish",
-        "Support Zone": "$85K",
-        "Resistance Zone": "$97.5K"
-    })
+    with st.expander("📊 Strategic Signal Breakdown"):
+        for macro in evaluate_macro_factors():
+            st.markdown(f"- {macro}")
+        st.line_chart(df[["Close", "MA30", "MA90"]])
 
-    st.markdown("**📊 Risk/Reward Gauge**")
-    rsi = np.random.randint(30, 70)
-    gauge = ["🟩"] * (rsi // 10) + ["⬜"] * (10 - (rsi // 10))
-    st.write(f"RSI {rsi}: {''.join(gauge)}")
-
-    st.markdown("**📈 Signal History (Strategic)**")
-    df = pd.DataFrame({
-        "Date": pd.date_range(end=datetime.date.today(), periods=10),
-        "Signal": np.random.choice(["BUY", "HOLD", "SELL"], size=10)
-    })
-    st.line_chart(df.set_index("Date"))
-
-    # Telegram push logic
-    if not silent_mode and (not quiet_hours or (hour >= 8 and hour < 18)):
-        send_message(f"📣 {asset}: Signal Update
-Short-Term: BUY
-Strategic: HOLD
-Long-Term: BUY")
-
-st.success("Dashboard loaded successfully.")
+if not is_quiet:
+    st.success("✅ Signal logic processed. Notifications allowed.")
+else:
+    st.info("🔕 Quiet Hours active. No alerts dispatched.")

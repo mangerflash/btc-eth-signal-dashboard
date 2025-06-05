@@ -1,1 +1,1 @@
-# app.py placeholder - full logic to follow
+<REPLACED_BY_PREVIOUSLY_GENERATED APP.PY FULL LOGIC>

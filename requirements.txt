@@ -1,8 +1,8 @@
-
+--prefer-binary
 streamlit==1.24.0
 pandas==1.5.3
 numpy>=1.26.4
-pillow>=6.2.0,<10
+pillow==9.4.0
 plotly==5.15.0
 yfinance==0.2.18
 pytz==2023.3

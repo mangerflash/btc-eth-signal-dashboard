@@ -3,5 +3,7 @@ streamlit
 pandas
 requests
 pytz
-streamlit-autorefresh
 matplotlib
+numpy
+scipy
+streamlit-autorefresh

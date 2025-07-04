@@ -4,4 +4,4 @@ pandas_ta==0.3.14b0
 yfinance==0.2.18
 plotly==5.15.0
 numpy==1.26.4
-pillow==10.3.0
+pillow==10.2.0

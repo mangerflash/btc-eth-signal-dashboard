@@ -59,7 +59,7 @@ def plot_chart(df, ticker):
     return fig
 
 # --------- UI Controls ---------
-silent_mode = st.sidebar.toggle("🔕 Silent Mode", value=is_quiet_hours())
+silent_mode = st.sidebar.checkbox("🔕 Silent Mode", value=is_quiet_hours())
 
 # --------- Main Dashboard ---------
 for asset in ASSETS:

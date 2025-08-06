@@ -1,24 +1,21 @@
+# 📈 BTC & ETH Signal Dashboard
 
-# BTC & ETH Signal Dashboard
+This project provides technical analysis-based trading signals for Bitcoin and Ethereum using multiple timeframes.
 
-This dashboard analyzes Bitcoin and Ethereum price data to generate simple investment signals (BUY / SELL / HOLD) based on RSI and moving average.
+## ✅ Features
 
-## Features
-- Live price feed from CoinGecko
-- Technical indicator calculations (RSI, 30-day MA)
-- Streamlit-based web interface
-- Telegram notifications for signal alerts
+- Short-term, strategic, and long-term signals
+- Signal breakdown logic panel
+- RSI, EMA, and MACD indicators
+- Risk/reward charting
+- Silent hours toggle (08:00–18:00 active push)
+- Telegram push alerts (optional via secret config)
 
-## Setup
-1. Add your Telegram bot token and chat ID in `telegram_alerts.py`
-2. Run the app:
+## 🔧 Requirements
+
+Python 3.10 recommended.
+
+Install dependencies:
+
 ```bash
-streamlit run app.py
-```
-
-Or deploy via Streamlit Cloud.
-
-## To Do
-- Integrate on-chain analytics
-- Add sentiment analysis
-- Backtesting engine
+pip install -r requirements.txt

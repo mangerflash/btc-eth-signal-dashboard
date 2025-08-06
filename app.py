@@ -3,46 +3,85 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import plotly.graph_objects as go
+from datetime import datetime, timedelta
 import pandas_ta as ta
 
-st.set_page_config(page_title="BTC & ETH Signal Dashboard", layout="wide")
+# --------- Settings ----------
+ASSETS = ['BTC-USD', 'ETH-USD']
+QUIET_HOURS_START = 18  # 18:00
+QUIET_HOURS_END = 8     # 08:00
 
-# Fetch data
-@st.cache_data
-def load_data(ticker):
-    df = yf.download(ticker, period="6mo", interval="1d")
-    df["RSI"] = ta.rsi(df["Close"])
-    df["MACD"] = ta.macd(df["Close"])["MACD_12_26_9"]
-    df["Signal"] = ta.macd(df["Close"])["MACDs_12_26_9"]
-    df["MA50"] = df["Close"].rolling(window=50).mean()
-    df["MA200"] = df["Close"].rolling(window=200).mean()
-    return df
+# --------- App Config ---------
+st.set_page_config(page_title="BTC/ETH Signal Dashboard", layout="wide")
+st.title("📈 BTC & ETH Signal Dashboard")
 
-st.title("📊 BTC & ETH Signal Dashboard")
+# --------- Functions ----------
+def is_quiet_hours():
+    now = datetime.now().hour
+    return QUIET_HOURS_START <= now or now < QUIET_HOURS_END
 
-asset = st.selectbox("Select asset:", ["BTC-USD", "ETH-USD"])
-df = load_data(asset)
+def fetch_data(ticker, days=90):
+    end = datetime.now()
+    start = end - timedelta(days=days)
+    return yf.download(ticker, start=start, end=end)
 
-# Plot price chart
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=df.index, y=df["Close"], name="Close"))
-fig.add_trace(go.Scatter(x=df.index, y=df["MA50"], name="MA50"))
-fig.add_trace(go.Scatter(x=df.index, y=df["MA200"], name="MA200"))
-fig.update_layout(title=f"{asset} Price Chart", height=400)
-st.plotly_chart(fig, use_container_width=True)
+def generate_signals(df):
+    df['EMA20'] = df['Close'].ewm(span=20).mean()
+    df['EMA50'] = df['Close'].ewm(span=50).mean()
+    df['RSI'] = ta.rsi(df['Close'], length=14)
+    df['MACD'] = ta.macd(df['Close']).iloc[:,0]
 
-# Signal logic
-def get_signal(row):
-    if row["RSI"] < 30 and row["Close"] > row["MA50"] > row["MA200"]:
-        return "BUY"
-    elif row["RSI"] > 70 and row["Close"] < row["MA50"] < row["MA200"]:
-        return "SELL"
-    return "HOLD"
+    # Short-Term: EMA20 vs EMA50
+    short_signal = 'BUY' if df['EMA20'].iloc[-1] > df['EMA50'].iloc[-1] else 'SELL'
 
-df["Signal_Type"] = df.apply(get_signal, axis=1)
+    # Strategic: RSI
+    rsi_val = df['RSI'].iloc[-1]
+    if rsi_val < 35:
+        strat_signal = 'BUY'
+    elif rsi_val > 65:
+        strat_signal = 'SELL'
+    else:
+        strat_signal = 'HOLD'
 
-st.subheader("Latest Signal")
-st.metric(label="Signal", value=df["Signal_Type"].iloc[-1])
+    # Long-Term: MACD direction
+    macd_val = df['MACD'].iloc[-1]
+    prev_macd_val = df['MACD'].iloc[-2]
+    long_signal = 'BUY' if macd_val > prev_macd_val else 'SELL'
 
-st.subheader("RSI & MACD")
-st.dataframe(df[["RSI", "MACD", "Signal"]].tail(10))
+    return short_signal, strat_signal, long_signal
+
+def plot_chart(df, ticker):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df.index, y=df['Close'], mode='lines', name='Price'))
+    fig.add_trace(go.Scatter(x=df.index, y=df['EMA20'], mode='lines', name='EMA20'))
+    fig.add_trace(go.Scatter(x=df.index, y=df['EMA50'], mode='lines', name='EMA50'))
+    fig.update_layout(title=f'{ticker} Price Chart', xaxis_title='Date', yaxis_title='Price')
+    return fig
+
+# --------- UI Controls ---------
+silent_mode = st.sidebar.toggle("🔕 Silent Mode", value=is_quiet_hours())
+
+# --------- Main Dashboard ---------
+for asset in ASSETS:
+    st.subheader(asset)
+    df = fetch_data(asset)
+
+    short, strat, long = generate_signals(df)
+
+    cols = st.columns(3)
+    cols[0].metric("📉 Short-Term Signal", short)
+    cols[1].metric("📊 Strategic Signal", strat)
+    cols[2].metric("📈 Long-Term Signal", long)
+
+    with st.expander(f"📊 Chart & Analysis for {asset}"):
+        st.plotly_chart(plot_chart(df, asset), use_container_width=True)
+        st.write("🧠 **Signal Logic Breakdown**")
+        st.markdown(f"""
+        - **Short-Term**: EMA20 vs EMA50 → `{short}`
+        - **Strategic**: RSI (current {df['RSI'].iloc[-1]:.2f}) → `{strat}`
+        - **Long-Term**: MACD trend → `{long}`
+        """)
+
+# --------- Telegram Push (disabled in UI preview) ---------
+if not silent_mode:
+    st.success("📬 Push notification *would* be sent now (if enabled)")
